@@ -1,0 +1,83 @@
+pipeline {
+    agent {
+        kubernetes{
+            inheritFrom 'docker-in-docker'
+        }
+    }
+    environment{
+	    project_url="http://gitlab.gitlab.svc.cluster.local:31080/java-spring-boot/cloud-spring-boot.git"		
+		devops_url="http://gitlab.gitlab.svc.cluster.local:31080/devops-grp/devops.git"
+		authId="2e8a7034-574d-49eb-abfa-046f651c29aa"
+		registry="http://sonatype-nexus.nexus.svc.cluster.local:8082"
+		registryCredential="nexus-docker-reigstry"
+	}
+	parameters{
+		string(name: "AppName",defaultValue: "application/springboot-demo",description: "",trim: true)
+		string(name: "AppVersion",defaultValue: "",description: "",trim: true)	
+		string(name: "BRANCH",defaultValue: "master",description: "",trim: true)
+	}
+    
+    stages {	
+		stage('git clone source'){
+			steps{				
+				git branch: "${branch}", credentialsId: "${authId}", url: "${project_url}"
+				sh 'ls -l'
+			}
+		
+		}
+        stage('build complie'){
+            steps {
+                container('maven'){
+                    sh 'mvn clean install && pwd && ls -l ./&& find ./ -name "*.jar" '
+                }
+            }
+            
+        }		
+		stage('build image'){
+			steps{				
+				sh '''mkdir ./buildImage && ls -l '''
+				dir("buildImage"){				    					
+					container('docker'){						
+						git branch: "${branch}", credentialsId: "${authId}", url: "${devops_url}"
+						sh '''mv `find ../ -name "*.jar"` ./&& pwd && ls -l'''
+						script{
+							withDockerRegistry(credentialsId: "${registryCredential}", url: "${registry}") {
+								dockerImage = docker.build AppName + ":" + AppVersion	
+							}							
+						}
+					}
+						
+				}
+			}
+		}
+		
+		stage('push image'){
+			steps{
+				input message: 'Are you sure,pushing images to docker-repository?', ok: 'sure'
+				container('docker'){
+					script{
+					    docker.withRegistry( registry, registryCredential ){
+							dockerImage.push()
+						}
+					
+					}
+				
+				}	
+					
+			}		
+		
+		}
+		stage('deploy springboot-demo'){
+			steps{
+				input message: 'Are you sure,deploy springboot-demo?', ok: 'sure'
+				container('docker'){
+					sh '''cd ./buildImage && sh ./deploy.sh ${AppVersion}'''
+				}				
+				
+			}
+		
+		}
+										
+	}
+      
+}

@@ -1,0 +1,143 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: gitlab
+  name: gitlab
+  namespace: gitlab
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: gitlab
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: gitlab
+      name: gitlab
+    spec:
+      containers:
+      - env:
+        - name: GITLAB_TIMEZONE
+          value: Asia/Shanghai
+        - name: GITLAB_SECRETS_OTP_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              key: gitlab_secrets_otp_key_base
+              name: gitlab
+        - name: GITLAB_SECRETS_DB_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              key: gitlab_secrets_db_key_base
+              name: gitlab
+        - name: GITLAB_SECRETS_SECRET_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              key: gitlab_secrets_secret_key_base
+              name: gitlab
+        - name: GITLAB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: gitlab_root_pass
+              name: gitlab
+        - name: GITLAB_ROOT_EMAIL
+          value: admin@k8s.cn
+        - name: GITLAB_HOST
+          value: localhost
+        - name: GITLAB_PORT
+          value: "80"
+        - name: GITLAB_SSH_PORT
+          value: "22"
+        - name: GITLAB_NOTIFY_ON_BROKEN_BUILDS
+          value: "true"
+        - name: GITLAB_NOTIFY_PUSHER
+          value: "false"
+        - name: DB_TYPE
+          value: postgres
+        - name: DB_HOST
+          value: gitlab-postgresql
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              key: db_user
+              name: gitlab
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              key: db_pass
+              name: gitlab
+        - name: DB_NAME
+          value: gitlabhq_production
+        - name: REDIS_HOST
+          value: gitlab-redis
+        - name: REDIS_PORT
+          value: "6379"
+        image: sonatype-nexus.nexus.svc.cluster.local:8082/kubernets-component/sameersbn/gitlab:13.10.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 300
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: gitlab
+        ports:
+        - containerPort: 22
+          name: ssh
+          protocol: TCP
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 443
+          name: https
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 30
+        resources:
+          limits:
+            cpu: "4"
+            memory: 6Gi
+          requests:
+            cpu: "2"
+            memory: 4Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /home/git/data
+          name: data
+        - mountPath: /etc/localtime
+          name: localtime
+      dnsPolicy: ClusterFirst
+      nodeName: k8s-node-1
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: gitlab-storage-pvc
+      - hostPath:
+          path: /etc/localtime
+          type: ""
+        name: localtime

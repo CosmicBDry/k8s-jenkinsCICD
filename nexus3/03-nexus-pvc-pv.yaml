@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cce-evs-nexus3-pv
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: 30Gi
+  nfs:
+    path: /abclprd/nexus/storage/
+    server: 10.10.69.131
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cce-evs-nexus3
+  namespace: nexus
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 30Gi
+  volumeName: cce-evs-nexus3-pv

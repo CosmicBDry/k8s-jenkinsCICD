@@ -1,0 +1,47 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: jenkins
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      containers:
+      - image: sonatype-nexus.nexus.svc.cluster.local:8082/kubernets-component/jenkins:devops-2.263.4
+        imagePullPolicy: IfNotPresent
+        name: jenkins-app
+        ports:
+        - containerPort: 8080
+          name: jenkins-port
+          protocol: TCP
+        resources: 
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        volumeMounts:
+        - mountPath: /app/jenkins/jenkins-data/
+          name: jenkins-data
+      restartPolicy: Always
+      serviceAccount: jenkins-admin
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: jenkins-data
+        persistentVolumeClaim:
+          claimName: jenkins-data-pvc
